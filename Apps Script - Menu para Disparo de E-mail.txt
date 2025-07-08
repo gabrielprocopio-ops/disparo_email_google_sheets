@@ -1,0 +1,107 @@
+/**
+ * Esse script adiciona um menu "Disparo Email" no Google Sheets para permitir o envio
+ * de e-mails personalizados com base nos dados da planilha.
+ */
+
+/**
+ * Cria o menu personalizado quando o Google Sheets é aberto.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('Disparo E-mail') // Você pode mudar o nome do menu aqui, se quiser
+    .addItem('Enviar email por e-mail do cliente', 'abrirDialogoEmail')
+    .addToUi();
+}
+
+/**
+ * Abre uma caixa de diálogo para o usuário digitar o e-mail do cliente.
+ */
+function abrirDialogoEmail() {
+  const ui = SpreadsheetApp.getUi();
+  const resposta = ui.prompt('Enviar email', 'Digite o e-mail do cliente:', ui.ButtonSet.OK_CANCEL);
+
+  if (resposta.getSelectedButton() == ui.Button.OK) {
+    const emailCliente = resposta.getResponseText().trim();
+    if (emailCliente) {
+      enviarEmailPorEmailCliente(emailCliente);
+    } else {
+      ui.alert('Você deve digitar um e-mail válido.');
+    }
+  }
+}
+
+/**
+ * Envia o e-mail para o cliente correspondente ao e-mail digitado.
+ * Altere aqui se sua estrutura de planilha for diferente!
+ */
+function enviarEmailPorEmailCliente(emailCliente) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const dados = sheet.getDataRange().getValues();
+
+  let linhaCliente = -1;
+  let nomeCliente = '';
+  let nomeCS = '';
+  let dataOnboarding = '';
+
+  // ==== ATENÇÃO: Ajuste as Colunas abaixo de acordo com a sua planilha for diferente ====
+  // Coluna A = Nome do cliente [0]
+  // Coluna B = E-mail do cliente [1]
+  // Coluna D = Nome do CS [3]
+  // Coluna E = Data do onboarding [4]
+  // Coluna F = Status do envio [5]
+  for (let i = 1; i < dados.length; i++) {
+    if (dados[i][1].toString().toLowerCase() === emailCliente.toLowerCase()) {
+      linhaCliente = i + 1;
+      nomeCliente = dados[i][0];
+      nomeCS = dados[i][3];
+      dataOnboarding = dados[i][4];
+      break;
+    }
+  }
+
+  const ui = SpreadsheetApp.getUi();
+
+  if (linhaCliente === -1) {
+    ui.alert('Cliente com o e-mail "' + emailCliente + '" não encontrado na planilha.');
+    return;
+  }
+
+  const status = sheet.getRange(linhaCliente, 6).getValue(); // Coluna F
+  if (status === 'Enviado') {
+    ui.alert('E-mail já foi enviado para esse cliente.');
+    return;
+  }
+
+  // ==== ATENÇÃO: Substitua pelo link do seu formulário ====
+  const formLink = "https://forms.gle/SEULINKAQUI"; 
+
+  // ==== Personalize o assunto do e-mail aqui ====
+  const assunto = `Como foi seu atendimento com o (a) ${nomeCS}?`;
+
+  // ==== Personalize o conteúdo HTML do e-mail abaixo ====
+  const corpoHTML = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px;">
+      <img src="LINK DA LOGO DA SUA EMPRESA" alt="Logo da empresa" style="max-width: 150px; margin-bottom: 20px;">
+      <h2 style="color: #2c3e50;">Olá, ${nomeCliente}!</h2>
+      <p>Esperamos que seu atendimento com <strong>${nomeCS}</strong> tenha sido ótimo &#128522;</p>
+      <p>Para continuarmos melhorando, gostaríamos que você respondesse uma pesquisa rápida.</p>
+      <p>
+        <a href="${formLink}" style="background-color: #0a7fcb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px;">
+          &#128073; Responder pesquisa
+        </a>
+      </p>
+      <p>Obrigado pela confiança!</p>
+      <p><em>Equipe de Atendimento</em></p>
+    </div>
+  `;
+
+  // ==== Aqui ocorre o envio do e-mail ====
+  try {
+    GmailApp.sendEmail(emailCliente, assunto, '', { htmlBody: corpoHTML });
+    sheet.getRange(linhaCliente, 6).setValue('Enviado'); // Marca como enviado na coluna F
+    ui.alert('E-mail enviado com sucesso para ' + nomeCliente + ' (' + emailCliente + ').');
+  } catch (e) {
+    sheet.getRange(linhaCliente, 6).setValue('Erro no envio');
+    ui.alert('Erro ao enviar e-mail: ' + e.message);
+  }
+}
